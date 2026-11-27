@@ -1,7 +1,7 @@
-# Pulsar Star Classification: FastAPI + Docker
+# Pulsar Star Classification: MLflow + FastAPI + Streamlit + Docker
 
-A machine learning service that classifies radio signals as pulsar / not pulsar.
-A RandomForest model is trained on the HTRU2 dataset (Kaggle), served through a FastAPI REST API and packaged in a Docker container.
+An end-to-end machine learning service that classifies radio signals as pulsar / not pulsar.
+A RandomForest model is trained on the HTRU2 dataset (Kaggle), tracked and registered with MLflow, served through a FastAPI REST API with a Streamlit web interface, and containerized via Docker Compose.
 
 ## Dataset
 
@@ -15,10 +15,11 @@ HTRU2 (Pulsar Star Classification, Kaggle): 17,898 samples, 8 numeric features, 
 
 The classes are imbalanced: 16,259 non-pulsars vs 1,639 pulsars (about 9%), so `class_weight="balanced"` is used and F1-score is the main metric.
 
-## Model
+## Model & MLflow Tracking
 
 - Algorithm: `RandomForestClassifier` (200 trees, `class_weight="balanced"`, `random_state=42`)
 - Split: 80% train / 20% test, stratified
+- Experiment Tracking & Registry: MLflow logs hyperparameters, evaluation metrics, and model artifacts, registering the model as `pulsar-rf-model` (Version 1).
 
 | Metric | Value |
 |---|---|
@@ -32,35 +33,55 @@ The classes are imbalanced: 16,259 non-pulsars vs 1,639 pulsars (about 9%), so `
 ml-fastapi-docker/
 ├── data/HTRU_2.csv       # dataset
 ├── notebooks/            # exploration and experiments (Jupyter)
-├── train.py              # trains the model and saves model.joblib
-├── main.py               # FastAPI application
-├── model.joblib          # trained model
+├── train.py              # trains model, logs to MLflow & registers pulsar-rf-model
+├── main.py               # FastAPI inference service
+├── app.py                # Streamlit web frontend
+├── model.joblib          # serialized model artifact
 ├── requirements.txt      # Python dependencies
-├── Dockerfile            # container instructions
+├── Dockerfile            # container image definition
+├── docker-compose.yaml    # multi-container orchestration (API + Frontend)
 └── README.md
 ```
 
 ## Run locally
 
+1. **Set up environment and train the model:**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 
-python train.py                # trains the model, creates model.joblib
-uvicorn main:app --reload      # starts the API
+python train.py                # logs metrics/artifacts and registers model in MLflow
 ```
 
-Open http://127.0.0.1:8000/docs for the interactive Swagger UI.
+2. **Inspect MLflow UI (optional):**
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
+Open http://127.0.0.1:5000 to view experiments and the Model Registry.
 
-## Run with Docker
+3. **Start FastAPI backend and Streamlit frontend (in separate terminals):**
+```bash
+uvicorn main:app --reload      # API on http://127.0.0.1:8000
+streamlit run app.py           # UI on http://localhost:8501
+```
+
+## Run with Docker Compose
+
+Build and start both the FastAPI backend and Streamlit frontend containers:
 
 ```bash
-docker build -t pulsar-api .
-docker run -p 8000:8000 pulsar-api
+docker compose up --build
 ```
 
-Open http://localhost:8000/docs.
+- **Streamlit UI:** http://localhost:8501
+- **FastAPI Swagger UI:** http://localhost:8000/docs
+
+To stop the containers:
+
+```bash
+docker compose down
+```
 
 ## API
 
