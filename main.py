@@ -1,6 +1,9 @@
 
 import joblib
 import pandas as pd
+import os
+import mlflow
+import mlflow.sklearn
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -8,8 +11,17 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-model = joblib.load("model.joblib")
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+MODEL_URI = "models:/pulsar-rf-model/1"
 
+try:
+    mlflow.set_tracking_uri(TRACKING_URI)
+    model = mlflow.sklearn.load_model(MODEL_URI)
+    model_source = f"mlflow ({MODEL_URI})"
+except Exception as e:
+    print("MLflow load error:", e)
+    model = joblib.load("model.joblib")
+    model_source = "local (model.joblib)"
 
 class PulsarFeatures(BaseModel):
     mean_integrated_profile: float
@@ -24,7 +36,9 @@ class PulsarFeatures(BaseModel):
 
 @app.get("/")
 def home():
-    return {"message": "ML API is running"}
+    return {"message": "ML API is running",
+            "model_source": model_source
+            }
 
 
 @app.post("/predict")
